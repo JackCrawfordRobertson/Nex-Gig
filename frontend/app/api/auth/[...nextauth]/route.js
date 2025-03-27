@@ -4,8 +4,12 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
-
-// Update in your NextAuth config
+// Whitelist of allowed production email domains or specific emails
+const ALLOWED_PRODUCTION_EMAILS = [
+  'jack@ya-ya.co.uk',
+  // Add other trusted email domains or specific emails
+  // Example: '@yourcompany.com'
+];
 
 export const authOptions = {
   providers: [
@@ -16,6 +20,20 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        // Completely disable any mock/test user authentication in production
+        if (process.env.NODE_ENV === "production") {
+          // Additional domain/email validation for production
+          if (!credentials?.email || 
+              !ALLOWED_PRODUCTION_EMAILS.some(allowedEmail => 
+                credentials.email.toLowerCase() === allowedEmail.toLowerCase() ||
+                credentials.email.toLowerCase().endsWith(`@${allowedEmail.split('@')[1]}`)
+              )
+          ) {
+            console.error("Unauthorized production login attempt:", credentials?.email);
+            return null;
+          }
+        }
+        
         // For development mode with mock data - ONLY when explicitly provided
         if (process.env.NODE_ENV === "development" && 
             credentials && 
@@ -24,22 +42,36 @@ export const authOptions = {
           return { id: "demo-user-id", email: "alice@example.com" };
         }
         
-        // Make sure we have credentials
+        // Validate credentials
         if (!credentials || !credentials.email || !credentials.password) {
           return null;
         }
         
-        // Regular production path
+        // Regular authentication path
         try {
           const userCredential = await signInWithEmailAndPassword(
             auth,
             credentials.email,
             credentials.password
           );
-          return { id: userCredential.user.uid, email: userCredential.user.email };
+          
+          // Additional production security check
+          if (process.env.NODE_ENV === "production") {
+            const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
+            
+            if (!userDoc.exists() || !userDoc.data().subscribed) {
+              console.error("Unauthorized production access attempt");
+              return null;
+            }
+          }
+          
+          return { 
+            id: userCredential.user.uid, 
+            email: userCredential.user.email 
+          };
         } catch (error) {
           console.error("Firebase Auth Error:", error);
-          throw new Error("Invalid credentials.");
+          return null; // Changed from throw to return null for better error handling
         }
       },
     }),
@@ -47,6 +79,16 @@ export const authOptions = {
   
   callbacks: {
     async session({ session, token }) {
+      // Prevent session creation for unauthorized users in production
+      if (process.env.NODE_ENV === "production") {
+        if (!ALLOWED_PRODUCTION_EMAILS.some(allowedEmail => 
+          session.user.email?.toLowerCase() === allowedEmail.toLowerCase() ||
+          session.user.email?.toLowerCase().endsWith(`@${allowedEmail.split('@')[1]}`)
+        )) {
+          return null;
+        }
+      }
+
       session.user.id = token.sub;
       
       // Fetch subscription information from Firestore
@@ -55,6 +97,11 @@ export const authOptions = {
         
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          
+          // Only allow access to subscribed users in production
+          if (process.env.NODE_ENV === "production" && !userData.subscribed) {
+            return null;
+          }
           
           // Add user profile data to the session
           session.user.firstName = userData.firstName || '';
@@ -78,8 +125,7 @@ export const authOptions = {
         }
       } catch (error) {
         console.error("Error fetching user subscription data:", error);
-        // Don't fail the session if we can't get subscription data
-        // Just proceed with the basic user info
+        return null; // Deny session if user data can't be retrieved
       }
       
       return session;

@@ -24,7 +24,12 @@ import {Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandL
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 
 export default function DashboardPage() {
-   const {data: session, status} = useSession();
+    const { data: session, status } = useSession({
+        required: true,
+        onUnauthenticated() {
+          router.push("/login");
+        }
+      });
    const [userData, setUserData] = useState(null);
    const [jobs, setJobs] = useState([]);
    const [loading, setLoading] = useState(true);
@@ -48,6 +53,8 @@ export default function DashboardPage() {
            return jobDate >= oneDayAgo;
        });
    };
+
+   
 
    // Filter jobs based on search query
    const getFilteredJobs = () => {
@@ -101,6 +108,15 @@ export default function DashboardPage() {
            }
        }
    };
+
+   useEffect(() => {
+    if (process.env.NODE_ENV === "production") {
+      // Additional check to ensure no test users
+      if (session?.user?.email === "alice@example.com") {
+        signOut({ callbackUrl: "/login" });
+      }
+    }
+  }, [session]);
 
    useEffect(() => {
        console.log("Setting up visibility change listener");
