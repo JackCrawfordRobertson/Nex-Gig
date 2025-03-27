@@ -24,21 +24,6 @@ const MOCK_USER = {
     },
 };
 
-// Force client-side only rendering for the entire component
-export default dynamic(() => Promise.resolve(SubscriptionComponent), { ssr: false });
-
-// Export viewport configuration as a separate component to avoid server-side generation
-export const metadata = {
-    title: "Subscription",
-    description: "Subscribe to our service"
-};
-
-// Explicitly mark the viewport generation as client-side
-export const generateViewport = () => ({
-    viewport: "width=device-width, initial-scale=1, maximum-scale=1",
-    themeColor: "#ffffff"
-});
-
 function SubscriptionComponent() {
     const router = useRouter();
     const { data: session, status } =
@@ -78,16 +63,13 @@ function SubscriptionComponent() {
                     if (fraudResult.isSuspicious) {
                         console.warn("Suspicious activity detected:", fraudResult);
                         
-                        // Check if any of the existing subscriptions belong to this user
-                        const hasOwnSubscription = fraudResult.existingSubscriptions.some(
-                            sub => sub.userId === session.user.id
-                        );
-                        
-                        if (hasOwnSubscription) {
-                            // User already has a subscription - redirect to dashboard
+                        // Modified: Always redirect to dashboard if user is logged in
+                        // regardless of which user has the subscription
+                        if (session?.user?.id) {
+                            // Redirect to dashboard
                             router.push("/dashboard");
                         } else {
-                            // Someone else has used this fingerprint/device
+                            // Only show error if not logged in
                             setErrorMessage("We've detected that you may already have an active subscription. If you believe this is an error, please contact support.");
                         }
                     }
@@ -167,6 +149,7 @@ function SubscriptionComponent() {
                             width={140} 
                             height={50} 
                             priority
+                            style={{ height: "auto" }} // Added to fix aspect ratio warning
                         />
                     </div>
                     <p className="text-lg font-medium text-gray-700 mt-2">
@@ -257,3 +240,5 @@ function SubscriptionComponent() {
         </div>
     );
 }
+
+export default SubscriptionComponent;
