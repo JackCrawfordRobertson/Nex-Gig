@@ -74,6 +74,11 @@ export const authOptions = {
             token.subscriptionId = userData.subscriptionId;
             token.subscriptionStartDate = userData.subscriptionStartDate;
             token.trialEndDate = userData.trialEndDate;
+            
+            // Add these new fields
+            token.firstName = userData.firstName;
+            token.lastName = userData.lastName;
+            token.profilePicture = userData.profilePicture;
           }
         }
       } catch (error) {
@@ -96,11 +101,19 @@ export const authOptions = {
         session.user.subscriptionStartDate = token.subscriptionStartDate;
         session.user.trialEndDate = token.trialEndDate;
         
+        // Add new user fields
+        session.user.firstName = token.firstName;
+        session.user.lastName = token.lastName;
+        session.user.profilePicture = token.profilePicture;
+        
         // For development, use mock user data
         if (process.env.NODE_ENV === "development") {
           const mockUser = mockUsers["demo-user-id"];
           session.user.subscribed = mockUser.subscribed;
           session.user.onTrial = mockUser.onTrial;
+          session.user.firstName = mockUser.firstName;
+          session.user.lastName = mockUser.lastName;
+          session.user.profilePicture = mockUser.profilePicture;
         }
       }
       
