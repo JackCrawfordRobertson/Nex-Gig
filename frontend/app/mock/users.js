@@ -126,11 +126,40 @@ const mockUsers = {
                 url: "https://uk.linkedin.com/jobs/view/product-designer-ux-ui-at-fresha-4140124691",
             },
         ],
+        // Subscription data in user object
         subscribed: true,
+        subscriptionId: "I-84BSFMUWGGL1",
+        subscriptionPlan: "paypal",
+        subscriptionStartDate: "2025-03-20T18:42:23.719Z",
+        trialEndDate: "2025-03-27T18:42:23.719Z",
+        onTrial: true,
+        profileVisibility: "private",
+        marketingConsent: false,
+        notifications: true,
         profilePicture: 'https://res.cloudinary.com/dfsznxwhz/image/upload/v1742992744/nextgig-logo_nqjhvq.svg',
         firstName: 'Alice',
         lastName: 'Smith',
+        userIP: "92.28.117.205",
+        updatedAt: "2025-03-26T13:19:55.114Z"
     },
 };
 
+// Add mock subscription data
+const mockSubscriptions = {
+    "demo-user-id": {
+        createdAt: "2025-03-20T18:42:23.884Z",
+        currency: "GBP",
+        fingerprint: "60ee7d4fbfbb8787ba9537476816cf41",
+        paymentMethod: "paypal",
+        plan: "paypal",
+        price: 1.99,
+        startDate: "2025-03-20T18:42:23.884Z",
+        status: "trial",
+        subscriptionId: "I-84BSFMUWGGL1",
+        trialEndDate: "2025-03-27T18:42:23.719Z",
+        userId: "demo-user-id"
+    }
+};
+
 export default mockUsers;
+export { mockSubscriptions };

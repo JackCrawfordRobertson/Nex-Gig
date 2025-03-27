@@ -90,12 +90,11 @@ const profileFormSchema = z.object({
 
 export default function ProfileSettingsPage() {
   const router = useRouter();
-  const { toast } = useToast(); // Use the toast hook instead of importing directly
+  const { toast } = useToast();
   const [isPending, setIsPending] = useState(false);
   const [userData, setUserData] = useState(null);
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  // Then in your component, add these state variables and functions:
   const fileInputRef = useRef(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -106,12 +105,23 @@ export default function ProfileSettingsPage() {
     },
   });
 
+  // Helper function to format currency
+  const formatCurrency = (currency, amount) => {
+    const symbols = {
+      GBP: "£",
+      USD: "$",
+      EUR: "€",
+    };
+
+    return `${symbols[currency] || ""}${amount}`;
+  };
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         if (status !== "authenticated") return;
 
-        const userId = session.user.id; // or however you access the user ID in your session
+        const userId = session.user.id;
 
         // Fetch user data
         const userDocRef = doc(db, "users", userId);
@@ -126,7 +136,13 @@ export default function ProfileSettingsPage() {
         const subscriptionDoc = await getDoc(subscriptionDocRef);
 
         if (subscriptionDoc.exists()) {
-          setSubscriptionData(subscriptionDoc.data());
+          setSubscriptionData({
+            ...subscriptionDoc.data(),
+            trialEndDate:
+              userDoc.exists() && userDoc.data().trialEndDate
+                ? userDoc.data().trialEndDate
+                : subscriptionDoc.data().trialEndDate,
+          });
         }
 
         setIsLoading(false);
@@ -142,7 +158,7 @@ export default function ProfileSettingsPage() {
     };
 
     fetchUserData();
-  }, [status, session, router]);
+  }, [status, session, router, toast]);
 
   const form = useForm({
     resolver: zodResolver(profileFormSchema),
@@ -232,29 +248,37 @@ export default function ProfileSettingsPage() {
   };
 
   const handleCancelSubscription = async () => {
-    setIsPending(true);
+    if (!session?.user?.id) return;
 
     try {
-      if (status !== "authenticated") {
-        router.push("/login");
-        return;
+      // Call your API to cancel the subscription
+      const response = await fetch("/api/subscription/cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: session.user.id,
+          subscriptionId: subscriptionData.subscriptionId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to cancel subscription");
       }
 
-      const userId = session.user.id;
-
-      // Here you would typically call your backend API to cancel the subscription
-      // This is a placeholder for that logic
-
       toast({
-        title: "Subscription cancelled",
-        description: "Your subscription has been cancelled successfully.",
+        title: "Subscription Cancelled",
+        description: "Your subscription has been cancelled successfully",
       });
 
-      // Update local state
-      setSubscriptionData({
-        ...subscriptionData,
-        status: "cancelled",
+      // Refresh subscription data
+      const userRef = doc(db, "users", session.user.id);
+      await updateDoc(userRef, {
+        subscribed: false,
       });
+
+      setSubscriptionData(null);
     } catch (error) {
       console.error("Error cancelling subscription:", error);
       toast({
@@ -262,8 +286,6 @@ export default function ProfileSettingsPage() {
         description: "Failed to cancel subscription. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsPending(false);
     }
   };
 
@@ -336,6 +358,44 @@ export default function ProfileSettingsPage() {
     } finally {
       setUploadingImage(false);
     }
+  };
+
+  // Helper function to get next billing date
+  const getNextBillingDate = (startDate) => {
+    if (!startDate) return new Date();
+
+    const date = new Date(startDate);
+    date.setMonth(date.getMonth() + 1);
+    return date;
+  };
+
+  // Helper function to get days left in trial
+  const getDaysLeft = (endDate) => {
+    if (!endDate) return 0;
+
+    const end = new Date(endDate);
+    const today = new Date();
+    const diffTime = end - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Helper function to calculate trial progress percentage
+  const getTrialProgress = (startDate, endDate) => {
+    if (!startDate || !endDate) return 0;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const today = new Date();
+
+    const totalDuration = end - start;
+    const elapsed = today - start;
+
+    const percentage = Math.min(
+      100,
+      Math.max(0, (elapsed / totalDuration) * 100)
+    );
+    return percentage;
   };
 
   if (isLoading) {
@@ -728,51 +788,92 @@ export default function ProfileSettingsPage() {
                   Manage your subscription plan and billing information
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {subscriptionData ? (
+              <CardContent className="space-y-4 ">
+                {isLoading ? (
+                  <div className="flex justify-center p-8">
+                    <svg
+                      className="animate-spin h-8 w-8 text-primary"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  </div>
+                ) : subscriptionData ? (
                   <>
-                    <div className="border rounded-lg p-4">
+                    <div className="border rounded-lg p-4 bg-white">
                       <div className="flex justify-between items-center mb-2">
                         <h3 className="font-semibold">Current Plan</h3>
                         <span
                           className={`text-sm rounded-full px-3 py-1 ${
                             subscriptionData.status === "trial"
                               ? "bg-yellow-100 text-yellow-800"
-                              : subscriptionData.status === "active"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
+                              : "bg-green-100 text-green-800"
                           }`}
                         >
                           {subscriptionData.status === "trial"
                             ? "Trial"
-                            : subscriptionData.status === "active"
-                            ? "Active"
-                            : subscriptionData.status}
+                            : "Active"}
                         </span>
                       </div>
                       <p className="text-2xl font-bold capitalize">
-                        {subscriptionData.plan} Plan
+                        {subscriptionData.plan || "Standard"} Plan
                       </p>
                       <p className="text-muted-foreground">
-                        {subscriptionData.currency === "GBP"
-                          ? "£"
-                          : subscriptionData.currency === "USD"
-                          ? "$"
-                          : subscriptionData.currency === "EUR"
-                          ? "€"
-                          : ""}
-                        {subscriptionData.price} per month
+                        {formatCurrency(
+                          subscriptionData.currency || "GBP",
+                          subscriptionData.price || 1.25
+                        )}{" "}
+                        per month
                       </p>
 
                       {subscriptionData.status === "trial" && (
-                        <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded-md text-sm">
-                          <p>
-                            Trial ends on{" "}
-                            {new Date(
-                              subscriptionData.trialEndDate
-                            ).toLocaleDateString("en-GB")}
-                          </p>
-                        </div>
+                        <>
+                          <div className="mt-4 mb-2">
+                            <div className="flex justify-between text-sm mb-1">
+                              <span>Trial period</span>
+                              <span>
+                                <strong>
+                                  {Math.max(
+                                    0,
+                                    getDaysLeft(subscriptionData.trialEndDate)
+                                  )}
+                                </strong>{" "}
+                                of 7 days left
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2.5">
+                              <div
+                                className="bg-blue-600 h-2.5 rounded-full"
+                                style={{
+                                  width: `${getTrialProgress(
+                                    subscriptionData.startDate,
+                                    subscriptionData.trialEndDate
+                                  )}%`,
+                                }}
+                              ></div>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Trial ends on{" "}
+                              {new Date(
+                                subscriptionData.trialEndDate
+                              ).toLocaleDateString("en-GB")}
+                            </p>
+                          </div>
+                        </>
                       )}
 
                       <p className="text-muted-foreground text-sm mt-2">
@@ -780,73 +881,43 @@ export default function ProfileSettingsPage() {
                         {new Date(
                           subscriptionData.status === "trial"
                             ? subscriptionData.trialEndDate
-                            : new Date(subscriptionData.startDate).setMonth(
-                                new Date(
-                                  subscriptionData.startDate
-                                ).getMonth() + 1
-                              )
+                            : getNextBillingDate(subscriptionData.startDate)
                         ).toLocaleDateString("en-GB")}
                       </p>
                     </div>
 
-                    <div className="border rounded-lg p-4">
+                    <div className="border rounded-lg p-4 bg-white">
                       <h3 className="font-semibold mb-2">Payment Method</h3>
                       <div className="flex items-center gap-2">
                         <div className="bg-gray-100 rounded p-1">
-                          {subscriptionData.paymentMethod === "paypal" ? (
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="24"
-                              height="24"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className="text-blue-600"
-                            >
-                              <path d="M7 11c1.5 0 3.5-1 3.5-4.5S8.33 2 6.5 2H2v12.5h2V9h.5L7 15h2l-3-4Z" />
-                              <path d="M22 8c0 3.5-2 4.5-3.5 4.5h-4c-1.5 0-2.5-1-2.5-2.5s1-2.5 2.5-2.5H19" />
-                              <path d="M22 2v3" />
-                              <path d="M17 15h-5.5c-1.5 0-2.5-1-2.5-2.5 0-1.5 1-2.5 2.5-2.5H17" />
-                              <path d="M22 9v6" />
-                            </svg>
-                          ) : (
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="24"
-                              height="24"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <rect width="20" height="14" x="2" y="5" rx="2" />
-                              <line x1="2" x2="22" y1="10" y2="10" />
-                            </svg>
-                          )}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="text-blue-600"
+                          >
+                            <path d="M7 11c1.5 0 3.5-1 3.5-4.5S8.33 2 6.5 2H2v12.5h2V9h.5L7 15h2l-3-4Z" />
+                            <path d="M22 8c0 3.5-2 4.5-3.5 4.5h-4c-1.5 0-2.5-1-2.5-2.5s1-2.5 2.5-2.5H19" />
+                            <path d="M22 2v3" />
+                            <path d="M17 15h-5.5c-1.5 0-2.5-1-2.5-2.5 0-1.5 1-2.5 2.5-2.5H17" />
+                            <path d="M22 9v6" />
+                          </svg>
                         </div>
                         <div>
-                          <p className="font-medium capitalize">
-                            {subscriptionData.paymentMethod}
-                          </p>
-                          {subscriptionData.fingerprint && (
+                          <p className="font-medium capitalize">PayPal</p>
+                          {subscriptionData.subscriptionId && (
                             <p className="text-sm text-muted-foreground">
-                              {subscriptionData.paymentMethod === "paypal"
-                                ? `ID: ${subscriptionData.subscriptionId}`
-                                : `Card ending in ${subscriptionData.fingerprint.substring(
-                                    subscriptionData.fingerprint.length - 4
-                                  )}`}
+                              ID: {subscriptionData.subscriptionId}
                             </p>
                           )}
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" className="mt-3">
-                        Update Payment Method
-                      </Button>
                     </div>
                   </>
                 ) : (
@@ -863,7 +934,6 @@ export default function ProfileSettingsPage() {
               </CardContent>
               {subscriptionData && (
                 <CardFooter className="flex justify-between">
-                  <Button variant="outline">Upgrade Plan</Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive">Cancel Subscription</Button>
@@ -895,6 +965,7 @@ export default function ProfileSettingsPage() {
               )}
             </Card>
           </TabsContent>
+
           <TabsContent value="privacy" className="space-y-4 mt-4 flex-1">
             <Card className="flex flex-col h-full">
               <CardHeader>
