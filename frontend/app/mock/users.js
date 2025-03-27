@@ -1,5 +1,5 @@
 // app/mock/users.js (not src/mock/users.js)
-const mockUsers = {
+const createMockUser = (overrides = {}) => ({
     "demo-user-id": {
         email: "alice@example.com",
         jobLocations: ["London", "Remote"],
@@ -142,24 +142,14 @@ const mockUsers = {
         userIP: "92.28.117.205",
         updatedAt: "2025-03-26T13:19:55.114Z"
     },
-};
+});
 
-// Add mock subscription data
-const mockSubscriptions = {
-    "demo-user-id": {
-        createdAt: "2025-03-20T18:42:23.884Z",
-        currency: "GBP",
-        fingerprint: "60ee7d4fbfbb8787ba9537476816cf41",
-        paymentMethod: "paypal",
-        plan: "paypal",
-        price: 1.99,
-        startDate: "2025-03-20T18:42:23.884Z",
-        status: "trial",
-        subscriptionId: "I-84BSFMUWGGL1",
-        trialEndDate: "2025-03-27T18:42:23.719Z",
-        userId: "demo-user-id"
-    }
-};
-
-export default mockUsers;
-export { mockSubscriptions };
+export const mockSession = {
+    user: createMockUser()
+  };
+  
+  export const mockUsers = {
+    "demo-user-id": createMockUser()
+  };
+  
+  export default mockUsers;
