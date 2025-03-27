@@ -9,7 +9,26 @@ export async function middleware(request) {
   });
 
   const path = request.nextUrl.pathname;
+  
+  // Define public paths and paths that don't require subscription
   const isPublicPath = ['/login', '/signup', '/password-reset', '/complete-profile'].includes(path);
+  const subscriptionPaths = ['/subscription', '/login'];
+
+  // Define all private paths
+  const privateRoutes = [
+    '/dashboard',
+    '/privacy',
+    '/profile-settings',
+    '/ifyoucould',
+    '/linkedin',
+    '/unjobs',
+    '/workable'
+  ];
+
+  // Check if the current path is a private route
+  const isPrivatePath = privateRoutes.some(route => 
+    path === route || path.startsWith(`${route}/`)
+  );
 
   // Production-specific checks
   if (process.env.NODE_ENV === 'production') {
@@ -18,17 +37,26 @@ export async function middleware(request) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
     
-    // Additional production checks (e.g., subscription status)
-    if (token && !token.subscribed && !['/subscription', '/login'].includes(path)) {
-      return NextResponse.redirect(new URL('/subscription', request.url));
+    // Check for authentication and subscription on private routes
+    if (isPrivatePath) {
+      // Redirect to login if not authenticated
+      if (!token) {
+        return NextResponse.redirect(new URL('/login', request.url));
+      }
+      
+      // Redirect to subscription if not subscribed
+      if (token && !token.subscribed && !subscriptionPaths.includes(path)) {
+        return NextResponse.redirect(new URL('/subscription', request.url));
+      }
     }
   }
 
-  // Authentication redirects
+  // General authentication redirects
   if (!token && !isPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // Redirect authenticated users from public paths
   if (token && isPublicPath) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
@@ -41,6 +69,11 @@ export const config = {
     '/',
     '/dashboard/:path*',
     '/privacy/:path*',
+    '/profile-settings',
+    '/ifyoucould/:path*',
+    '/linkedin/:path*',
+    '/unjobs/:path*',
+    '/workable/:path*',
     '/login',
     '/signup',
     '/password-reset',
