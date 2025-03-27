@@ -26,12 +26,14 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Upload, X } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { InfoIcon } from "lucide-react";
 
 function isSpelledCorrectly(text) {
   return /^[a-zA-Z\s]+$/.test(text);
 }
 
-// ✅ Get user IP address
+// Get user IP address
 const getUserIP = async () => {
   try {
     const response = await fetch("https://api64.ipify.org?format=json");
@@ -42,13 +44,13 @@ const getUserIP = async () => {
   }
 };
 
-// ✅ Get device fingerprint
+// Get device fingerprint
 const getDeviceFingerprint = () =>
   `${navigator.userAgent}-${navigator.language}-${screen.width}x${screen.height}`;
 
 export default function CompleteProfile() {
   const router = useRouter();
-  const isDev = process.env.NODE_ENV === "development"; // ← Check dev vs production
+  const isDev = process.env.NODE_ENV === "development"; // Check dev vs production
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -66,6 +68,8 @@ export default function CompleteProfile() {
   const [jobTitles, setJobTitles] = useState([]);
   const [jobLocations, setJobLocations] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [createAccountError, setCreateAccountError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   // For adding multiple job titles
   const [jobSearch, setJobSearch] = useState("");
@@ -183,21 +187,43 @@ export default function CompleteProfile() {
     );
   };
 
-  const handleSignUp = async () => {
-    if (!userIP || !deviceFingerprint) {
-      alert("Please wait a moment before signing up.");
-      return;
+  const testFirestoreConnection = async () => {
+    try {
+      // Try a simple database operation
+      const testRef = doc(db, "connectivity_test", "test");
+      await setDoc(testRef, { timestamp: new Date().toISOString() });
+      return true;
+    } catch (error) {
+      console.error("Firestore connection test failed:", error);
+      return false;
     }
-
+  };
+  
+  const handleSignUp = async () => {
     if (!isFormValid()) {
       alert("Please complete all fields before proceeding.");
       return;
     }
 
-    setLoading(true);
+    setIsLoading(true);
+    setCreateAccountError("");
+    
+    // Test connection first
+    const hasConnection = await testFirestoreConnection();
+    if (!hasConnection) {
+      setCreateAccountError("Connection to our database appears to be blocked by your browser. Please disable ad blockers or try a different browser.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!userIP || !deviceFingerprint) {
+      alert("Please wait a moment before signing up.");
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      // ✅ Check if user has already used a free trial (either same IP OR same fingerprint)
+      // Check if user has already used a free trial (either same IP OR same fingerprint)
       const usersRef = collection(db, "users");
       const ipQuery = query(usersRef, where("userIP", "==", userIP));
       const fingerprintQuery = query(
@@ -212,7 +238,7 @@ export default function CompleteProfile() {
 
       if (!ipSnapshot.empty || !fingerprintSnapshot.empty) {
         alert("You have already used a free trial.");
-        setLoading(false);
+        setIsLoading(false);
         return;
       }
 
@@ -230,12 +256,12 @@ export default function CompleteProfile() {
           userIP,
           deviceFingerprint,
         });
-        setLoading(false);
+        setIsLoading(false);
         alert("Dev mode - Sign up flow skipped. Check console logs.");
         return;
       }
 
-      // ✅ Create user in Firebase Authentication
+      // Create user in Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -243,21 +269,32 @@ export default function CompleteProfile() {
       );
       const user = userCredential.user;
 
-      // ✅ Save user data in Firestore
-      await setDoc(doc(db, "users", user.uid), {
+      // Only store essential user information initially
+      const essentialUserData = {
         email,
         firstName,
         lastName,
-        address,
+        address: {
+          firstLine: address.firstLine,
+          secondLine: address.secondLine || "",
+          city: address.city,
+          postcode: address.postcode,
+        },
         profilePicture,
         jobTitles,
         jobLocations,
         subscribed: false,
-        userIP, // Store IP for fraud prevention
-        deviceFingerprint, // Store fingerprint for fraud prevention
-      });
+        profileVisibility: "private",
+        marketingConsent: false,
+        createdAt: new Date().toISOString(),
+        userIP,
+        deviceFingerprint,
+      };
+      
+      // Create the user document with just essential data
+      await setDoc(doc(db, "users", user.uid), essentialUserData);
 
-      // ✅ Sign the user in using NextAuth
+      // Sign the user in using NextAuth
       const signInResult = await signIn("credentials", {
         redirect: false,
         email,
@@ -271,13 +308,13 @@ export default function CompleteProfile() {
         return;
       }
 
-      // ✅ Redirect to subscription page
+      // Redirect to subscription page
       router.push("/subscription");
     } catch (error) {
       console.error("Sign-Up Error:", error);
-      alert(error.message);
+      setCreateAccountError(error.message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -393,6 +430,7 @@ export default function CompleteProfile() {
               onChange={(e) => setJobSearch(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && jobSearch.trim() !== "") {
+                  e.preventDefault();
                   addJobTitle(jobSearch);
                 }
               }}
@@ -436,9 +474,34 @@ export default function CompleteProfile() {
             </div>
           </div>
 
+          {createAccountError && createAccountError.includes("blocked") && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded p-4 text-yellow-800 flex items-start">
+              <InfoIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-medium">Connection blocked</h4>
+                <p className="text-sm">
+                  It appears your browser is blocking connections to our database. 
+                  Please disable any ad blockers or privacy extensions for this site, 
+                  or try a different browser, then try again.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {createAccountError && !createAccountError.includes("blocked") && (
+            <div className="bg-red-50 border border-red-200 rounded p-4 text-red-800">
+              <h4 className="font-medium">Error creating account</h4>
+              <p className="text-sm">{createAccountError}</p>
+            </div>
+          )}
+
           {/* Create Account Button */}
-          <Button onClick={handleSignUp} disabled={!isFormValid() || loading}>
-            {loading ? "Creating Account..." : "Create Account"}
+          <Button 
+            onClick={handleSignUp} 
+            disabled={!isFormValid() || isLoading}
+            className="w-full"
+          >
+            {isLoading ? "Creating Account..." : "Create Account"}
           </Button>
         </CardContent>
         <CardFooter />
