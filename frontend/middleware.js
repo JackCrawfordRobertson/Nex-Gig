@@ -17,7 +17,6 @@ export async function middleware(request) {
   // Define all private paths
   const privateRoutes = [
     '/dashboard',
-    '/privacy',
     '/profile-settings',
     '/ifyoucould',
     '/linkedin',
@@ -68,7 +67,6 @@ export const config = {
   matcher: [
     '/',
     '/dashboard/:path*',
-    '/privacy/:path*',
     '/profile-settings',
     '/ifyoucould/:path*',
     '/linkedin/:path*',
@@ -78,6 +76,10 @@ export const config = {
     '/signup',
     '/password-reset',
     '/subscription',
-    '/complete-profile'
+    '/complete-profile',
+    '/ifyoucould',
+    '/linkedin',
+    '/unjobs',
+    '/workable'
   ]
 };
