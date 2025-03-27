@@ -120,31 +120,29 @@ export default function ProfileSettingsPage() {
     const fetchUserData = async () => {
       try {
         if (status !== "authenticated") return;
-
+    
         const userId = session.user.id;
-
+    
         // Fetch user data
         const userDocRef = doc(db, "users", userId);
         const userDoc = await getDoc(userDocRef);
-
+    
         if (userDoc.exists()) {
-          setUserData(userDoc.data());
-        }
-
-        // Fetch subscription data
-        const subscriptionDocRef = doc(db, "subscriptions", userId);
-        const subscriptionDoc = await getDoc(subscriptionDocRef);
-
-        if (subscriptionDoc.exists()) {
+          const userData = userDoc.data();
+          setUserData(userData);
+    
+          // Use subscription data directly from the user document
           setSubscriptionData({
-            ...subscriptionDoc.data(),
-            trialEndDate:
-              userDoc.exists() && userDoc.data().trialEndDate
-                ? userDoc.data().trialEndDate
-                : subscriptionDoc.data().trialEndDate,
+            plan: userData.subscriptionPlan,
+            status: userData.onTrial ? "trial" : "active",
+            currency: "GBP", // You might want to store this in the user document
+            price: 1.99, // Default or store in user document
+            startDate: userData.subscriptionStartDate,
+            trialEndDate: userData.trialEndDate,
+            subscriptionId: userData.subscriptionId
           });
         }
-
+    
         setIsLoading(false);
       } catch (error) {
         console.error("Error fetching user data:", error);
@@ -835,7 +833,7 @@ export default function ProfileSettingsPage() {
                       <p className="text-muted-foreground">
                         {formatCurrency(
                           subscriptionData.currency || "GBP",
-                          subscriptionData.price || 1.25
+                          subscriptionData.price || 1.99
                         )}{" "}
                         per month
                       </p>
