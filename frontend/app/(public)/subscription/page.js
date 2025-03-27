@@ -24,8 +24,20 @@ const MOCK_USER = {
     },
 };
 
-// Dynamically import the page to force client-side rendering
-const SubscriptionPage = dynamic(() => Promise.resolve(SubscriptionComponent), { ssr: false });
+// Force client-side only rendering for the entire component
+export default dynamic(() => Promise.resolve(SubscriptionComponent), { ssr: false });
+
+// Export viewport configuration as a separate component to avoid server-side generation
+export const metadata = {
+    title: "Subscription",
+    description: "Subscribe to our service"
+};
+
+// Explicitly mark the viewport generation as client-side
+export const generateViewport = () => ({
+    viewport: "width=device-width, initial-scale=1, maximum-scale=1",
+    themeColor: "#ffffff"
+});
 
 function SubscriptionComponent() {
     const router = useRouter();
