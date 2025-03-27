@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
-import { doc, updateDoc, collection, addDoc, query, where, getDocs } from "firebase/firestore";
+import { doc, updateDoc, collection, addDoc, query, where, getDocs, setDoc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import dynamic from "next/dynamic";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
@@ -13,10 +13,8 @@ import { Button } from "@/components/ui/button";
 import { getFingerprint, checkForFraudPatterns } from "@/lib/fingerprint";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
-// Import PayPalButton dynamically to prevent SSR hydration issues
 const PayPalButton = dynamic(() => import("@/components/PayPalButton"), { ssr: false });
 
-// Test user for development mode
 const MOCK_USER = {
     user: {
         id: "test-user-123",
@@ -36,22 +34,18 @@ function SubscriptionComponent() {
     const [fraudCheck, setFraudCheck] = useState({ status: "pending", isSuspicious: false });
     const [errorMessage, setErrorMessage] = useState("");
 
-    // Initialize the component
     useEffect(() => {
         console.log("Rendering SubscriptionPage...");
         setClientReady(true);
     }, []);
 
-    // Generate fingerprint and check for fraud patterns
     useEffect(() => {
-        // Generate fingerprint on component mount
         const initFingerprint = async () => {
             try {
                 const fp = await getFingerprint();
                 setFingerprint(fp);
                 console.log("Fingerprint generated:", fp);
                 
-                // If user is authenticated, check for fraud patterns
                 if (session?.user?.id && fp) {
                     const fraudResult = await checkForFraudPatterns(db, fp);
                     setFraudCheck({
@@ -63,13 +57,9 @@ function SubscriptionComponent() {
                     if (fraudResult.isSuspicious) {
                         console.warn("Suspicious activity detected:", fraudResult);
                         
-                        // Modified: Always redirect to dashboard if user is logged in
-                        // regardless of which user has the subscription
                         if (session?.user?.id) {
-                            // Redirect to dashboard
                             router.push("/dashboard");
                         } else {
-                            // Only show error if not logged in
                             setErrorMessage("We've detected that you may already have an active subscription. If you believe this is an error, please contact support.");
                         }
                     }
@@ -83,7 +73,6 @@ function SubscriptionComponent() {
         initFingerprint();
     }, [session, router, db]);
 
-    // Log session data when it changes
     useEffect(() => {
         console.log("Session data:", session);
     }, [session]);
@@ -96,19 +85,30 @@ function SubscriptionComponent() {
         try {
             console.log("Subscription successful:", subscriptionData);
             
-            // Calculate trial end date (7 days from now)
             const trialEndDate = new Date();
             trialEndDate.setDate(trialEndDate.getDate() + 7);
             
+            // Ensure user document exists before updating
+            const userRef = doc(db, "users", session.user.id);
+            const userDoc = await getDoc(userRef);
+    
+            if (!userDoc.exists()) {
+                // Create user document if it doesn't exist
+                await setDoc(userRef, {
+                    email: session.user.email,
+                    createdAt: new Date().toISOString(),
+                });
+            }
+    
             // Update user document with subscription info
-            await updateDoc(doc(db, "users", session.user.id), {
+            await setDoc(userRef, {
                 subscribed: true,
                 onTrial: true,
                 subscriptionPlan: "paypal",
                 subscriptionId: subscriptionData.subscriptionId,
                 subscriptionStartDate: new Date().toISOString(),
                 trialEndDate: trialEndDate.toISOString(),
-            });
+            }, { merge: true });
             
             // Create a subscription record for tracking and fraud prevention
             await addDoc(collection(db, "subscriptions"), {
@@ -125,16 +125,32 @@ function SubscriptionComponent() {
                 createdAt: new Date().toISOString(),
             });
         
-            // Force a reload of the session to update the subscription status
+            // Improved redirection logic
+            const redirectUrl = "/dashboard";
+            
+            // Try multiple redirection methods
             if (typeof window !== 'undefined') {
-                // This is a client-side redirect that forces a hard navigation
-                window.location.href = "/dashboard";
-            } else {
-                router.push("/dashboard");
+                // Client-side redirect methods
+                if (window.location) {
+                    window.location.href = redirectUrl;
+                } else if (router) {
+                    router.push(redirectUrl);
+                }
+            } else if (router) {
+                router.push(redirectUrl);
             }
+    
+            // Additional logging for debugging
+            console.log("Attempting to redirect to:", redirectUrl);
         } catch (err) {
             console.error("Error updating subscription:", err);
-            setErrorMessage("Subscription update failed. Please try again or contact support.");
+            
+            // More detailed error handling
+            if (err instanceof Error) {
+                setErrorMessage(`Subscription update failed: ${err.message}. Please try again or contact support.`);
+            } else {
+                setErrorMessage("Subscription update failed. Please try again or contact support.");
+            }
         }
     };
 

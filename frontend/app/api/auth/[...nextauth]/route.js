@@ -1,7 +1,6 @@
-// app/api/auth/[...nextauth]/route.js
 import NextAuth from "next-auth/next";
 import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -21,11 +20,11 @@ export const authOptions = {
         try {
           // For development mode, use the mock user
           if (process.env.NODE_ENV === "development") {
-            // Return the mock user data
+            const mockUser = mockUsers["demo-user-id"];
             return { 
-               id: "demo-user-id",
-              email: mockUsers["demo-user-id"].email,
-              name: `${mockUsers["demo-user-id"].firstName} ${mockUsers["demo-user-id"].lastName}`
+              id: "demo-user-id",
+              email: mockUser.email,
+              name: `${mockUser.firstName} ${mockUser.lastName}`
             };
           }
           
@@ -37,8 +36,8 @@ export const authOptions = {
           );
           
           return { 
-             id: userCredential.user.uid, 
-             email: userCredential.user.email,
+            id: userCredential.user.uid, 
+            email: userCredential.user.email,
             name: userCredential.user.displayName || credentials.email.split('@')[0]
           };
         } catch (error) {
@@ -54,42 +53,73 @@ export const authOptions = {
   },
   callbacks: {
     async jwt({ token, user }) {
+      // Initial sign-in or user update
       if (user) {
         token.sub = user.id;
         token.email = user.email;
         token.name = user.name;
       }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.sub;
-        session.user.email = token.email || session.user.email;
-        session.user.name = token.name || session.user.name;
-        
-        try {
-          // For development mode, use mock user data
-          if (process.env.NODE_ENV === "development") {
-            const mockUserData = mockUsers["demo-user-id"];
-            session.user.subscribed = mockUserData.subscribed;
-            session.user.onTrial = mockUserData.onTrial;
-            return session;
-          }
-          
-          // Production - get real data from Firestore
+      
+      try {
+        // For non-development environments, fetch the most up-to-date user data
+        if (process.env.NODE_ENV !== "development" && token.sub) {
           const userDoc = await getDoc(doc(db, "users", token.sub));
           
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            session.user.subscribed = userData.subscribed || false;
-            session.user.onTrial = userData.onTrial || false;
+            
+            // Update token with the latest user data
+            token.subscribed = userData.subscribed || false;
+            token.onTrial = userData.onTrial || false;
+            token.subscriptionId = userData.subscriptionId;
+            token.subscriptionStartDate = userData.subscriptionStartDate;
+            token.trialEndDate = userData.trialEndDate;
           }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
+        }
+      } catch (error) {
+        console.error("Error updating token:", error);
+      }
+      
+      return token;
+    },
+    async session({ session, token }) {
+      if (token) {
+        // Always update session with the latest token data
+        session.user.id = token.sub;
+        session.user.email = token.email || session.user.email;
+        session.user.name = token.name || session.user.name;
+        
+        // Add subscription-related information
+        session.user.subscribed = token.subscribed || false;
+        session.user.onTrial = token.onTrial || false;
+        session.user.subscriptionId = token.subscriptionId;
+        session.user.subscriptionStartDate = token.subscriptionStartDate;
+        session.user.trialEndDate = token.trialEndDate;
+        
+        // For development, use mock user data
+        if (process.env.NODE_ENV === "development") {
+          const mockUser = mockUsers["demo-user-id"];
+          session.user.subscribed = mockUser.subscribed;
+          session.user.onTrial = mockUser.onTrial;
         }
       }
       
       return session;
+    }
+  },
+  events: {
+    async signIn(message) {
+      // Optional: Additional actions on sign-in
+      if (message.user.id && process.env.NODE_ENV !== "development") {
+        try {
+          const userRef = doc(db, "users", message.user.id);
+          await updateDoc(userRef, {
+            lastLogin: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error("Error updating last login:", error);
+        }
+      }
     }
   },
   pages: {
