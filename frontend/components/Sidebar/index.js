@@ -36,7 +36,6 @@ export default function SidebarLayout({ children }) {
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const [desktopUserMenuOpen, setDesktopUserMenuOpen] = useState(false);
 
-
   // Add this function before your component
   const getTimeBasedGreeting = () => {
     const hour = new Date().getHours();
@@ -44,6 +43,17 @@ export default function SidebarLayout({ children }) {
     if (hour >= 12 && hour < 18) return "Afternoon";
     if (hour >= 18 && hour < 22) return "Evening";
     return "Good night";
+  };
+
+  const getLoginUrl = () => {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return "http://localhost:3000/login";
+      }
+      return "https://next.gig.jack-robertson.co.uk/login";
+    }
+    return `${appUrl}/login`; // fallback to imported appUrl
   };
 
   // Desktop Sidebar Component
@@ -139,10 +149,13 @@ export default function SidebarLayout({ children }) {
                   src={session?.user?.profilePicture || "/Memoji.png"}
                   alt="User Avatar"
                 />
-               <AvatarFallback className="bg-purple-100 text-purple-800">
-  {session?.user?.firstName ? session.user.firstName.charAt(0) : 
-   (session?.user?.name ? session.user.name.charAt(0) : "U")}
-</AvatarFallback>
+                <AvatarFallback className="bg-purple-100 text-purple-800">
+                  {session?.user?.firstName
+                    ? session.user.firstName.charAt(0)
+                    : session?.user?.name
+                    ? session.user.name.charAt(0)
+                    : "U"}
+                </AvatarFallback>
               </Avatar>
               <div className="text-left">
                 <p className="text-sm font-medium text-gray-700">
@@ -171,12 +184,12 @@ export default function SidebarLayout({ children }) {
                 Profile Settings
               </Link>
               <button
-  onClick={() => signOut({ callbackUrl: `${appUrl}/login` })}
-  className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-sm text-red-600"
->
-  <LogOut className="w-4 h-4" />
-  Sign out
-</button>
+                onClick={() => signOut({ callbackUrl: getLoginUrl() })}
+                className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-sm text-red-600"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign out
+              </button>
             </div>
           )}
         </div>
@@ -255,12 +268,12 @@ export default function SidebarLayout({ children }) {
               Profile Settings
             </Link>
             <button
-  onClick={() => signOut({ callbackUrl: `${appUrl}/login` })}
-  className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-sm text-red-600"
->
-  <LogOut className="w-4 h-4" />
-  Sign out
-</button>
+              onClick={() => signOut({ callbackUrl: getLoginUrl() })}
+              className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-sm text-red-600"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </button>
           </div>
         )}
       </div>
