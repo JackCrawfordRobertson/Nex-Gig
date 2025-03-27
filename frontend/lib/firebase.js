@@ -1,6 +1,8 @@
+// Updated firebase.js
+
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc as firestoreDoc, updateDoc, getDocs, collection, getDoc as firestoreGetDoc } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getFirestore, doc as firestoreDoc, updateDoc, getDocs, collection, getDoc as firestoreGetDoc, setDoc as firestoreSetDoc } from "firebase/firestore";
+import { getAuth as firebaseGetAuth } from "firebase/auth";
 
 // Import mock implementations when in development/test mode
 import * as mockFirebase from "@/lib/firebase-mock.js";
@@ -18,11 +20,15 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+// Determine if we're in development mode
+const isDevelopment = process.env.NODE_ENV === "development";
+
+// Export the appropriate implementation based on environment
+export const auth = isDevelopment ? mockFirebase.getAuth() : firebaseGetAuth(app);
 export const db = getFirestore(app);
 
 // Determine the appropriate app URL based on environment
-const isDevelopment = process.env.NODE_ENV === "development";
 const appUrl = isDevelopment 
     ? "http://localhost:3000" 
     : "https://next.gig.jack-robertson.co.uk";
@@ -36,5 +42,5 @@ export const actionCodeSettings = {
 // Export the appropriate functions based on environment
 export const doc = isDevelopment ? mockFirebase.doc : firestoreDoc;
 export const getDoc = isDevelopment ? mockFirebase.getDoc : firestoreGetDoc;
+export const setDoc = isDevelopment ? mockFirebase.setDoc : firestoreSetDoc;
 export { updateDoc, getDocs, collection };
-export const setDoc = isDevelopment ? mockFirebase.setDoc : null; // Add real setDoc if needed

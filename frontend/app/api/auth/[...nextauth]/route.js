@@ -4,6 +4,9 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
+
+// Update in your NextAuth config
+
 export const authOptions = {
   providers: [
     CredentialsProvider({
@@ -13,11 +16,17 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        // For development mode with mock data
+        // For development mode with mock data - ONLY when explicitly provided
         if (process.env.NODE_ENV === "development" && 
+            credentials && 
             credentials.email === "alice@example.com" && 
             credentials.password === "password") {
           return { id: "demo-user-id", email: "alice@example.com" };
+        }
+        
+        // Make sure we have credentials
+        if (!credentials || !credentials.email || !credentials.password) {
+          return null;
         }
         
         // Regular production path
@@ -35,6 +44,7 @@ export const authOptions = {
       },
     }),
   ],
+  
   callbacks: {
     async session({ session, token }) {
       session.user.id = token.sub;
