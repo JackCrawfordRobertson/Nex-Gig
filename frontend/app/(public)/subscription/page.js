@@ -39,11 +39,14 @@ function SubscriptionComponent() {
     const [fraudCheck, setFraudCheck] = useState({ status: "pending", isSuspicious: false });
     const [errorMessage, setErrorMessage] = useState("");
 
-    // Initialize the component and generate fingerprint
+    // Initialize the component
     useEffect(() => {
         console.log("Rendering SubscriptionPage...");
         setClientReady(true);
+    }, []);
 
+    // Generate fingerprint and check for fraud patterns
+    useEffect(() => {
         // Generate fingerprint on component mount
         const initFingerprint = async () => {
             try {
@@ -62,7 +65,19 @@ function SubscriptionComponent() {
                     
                     if (fraudResult.isSuspicious) {
                         console.warn("Suspicious activity detected:", fraudResult);
-                        setErrorMessage("We've detected that you may already have an active subscription. If you believe this is an error, please contact support.");
+                        
+                        // Check if any of the existing subscriptions belong to this user
+                        const hasOwnSubscription = fraudResult.existingSubscriptions.some(
+                            sub => sub.userId === session.user.id
+                        );
+                        
+                        if (hasOwnSubscription) {
+                            // User already has a subscription - redirect to dashboard
+                            router.push("/dashboard");
+                        } else {
+                            // Someone else has used this fingerprint/device
+                            setErrorMessage("We've detected that you may already have an active subscription. If you believe this is an error, please contact support.");
+                        }
                     }
                 }
             } catch (err) {
@@ -70,9 +85,9 @@ function SubscriptionComponent() {
                 setFraudCheck({ status: "error", error: err.message });
             }
         };
-
+        
         initFingerprint();
-    }, [session]);
+    }, [session, router, db]);
 
     // Log session data when it changes
     useEffect(() => {
@@ -115,8 +130,14 @@ function SubscriptionComponent() {
                 currency: "GBP",
                 createdAt: new Date().toISOString(),
             });
-
-            router.push("/dashboard");
+        
+            // Force a reload of the session to update the subscription status
+            if (typeof window !== 'undefined') {
+                // This is a client-side redirect that forces a hard navigation
+                window.location.href = "/dashboard";
+            } else {
+                router.push("/dashboard");
+            }
         } catch (err) {
             console.error("Error updating subscription:", err);
             setErrorMessage("Subscription update failed. Please try again or contact support.");
@@ -126,21 +147,20 @@ function SubscriptionComponent() {
     return (
         <div className="min-h-screen w-full bg-transparent flex flex-col items-center justify-center py-6 px-4">
             <Card className="max-w-2xl w-full shadow-lg border border-gray-200">
-               
-                  <CardHeader className="flex flex-col items-center text-center">
-                                   <div className="mb-4">
-                                       <Image 
-                                           src="/nextgig-logo.svg" 
-                                           alt="Company Logo" 
-                                           width={140} 
-                                           height={50} 
-                                           priority
-                                       />
-                                   </div>
-                                   <p className="text-lg font-medium text-gray-700 mt-2">
-                                   Support What Matters
-                                                                      </p>
-                               </CardHeader>
+                <CardHeader className="flex flex-col items-center text-center">
+                    <div className="mb-4">
+                        <Image 
+                            src="/nextgig-logo.svg" 
+                            alt="Company Logo" 
+                            width={140} 
+                            height={50} 
+                            priority
+                        />
+                    </div>
+                    <p className="text-lg font-medium text-gray-700 mt-2">
+                        Support What Matters
+                    </p>
+                </CardHeader>
 
                 <CardContent className="space-y-6">
                     <p className="text-center text-gray-600 text-lg">
@@ -225,5 +245,3 @@ function SubscriptionComponent() {
         </div>
     );
 }
-
-export default SubscriptionPage;
