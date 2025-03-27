@@ -1,11 +1,12 @@
+// middleware.js
 import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { ALLOWED_PRODUCTION_EMAILS } from './lib/environment';
 
 export async function middleware(request) {
-  const token = await getToken({ 
-    req: request, 
-    secret: process.env.NEXTAUTH_SECRET 
+  // Get the token with proper secret
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET
   });
 
   const path = request.nextUrl.pathname;
@@ -13,7 +14,7 @@ export async function middleware(request) {
   // Define public paths and paths that don't require subscription
   const isPublicPath = ['/login', '/signup', '/password-reset', '/complete-profile'].includes(path);
   const subscriptionPaths = ['/subscription', '/login'];
-
+  
   // Define all private paths
   const privateRoutes = [
     '/dashboard',
@@ -23,43 +24,40 @@ export async function middleware(request) {
     '/unjobs',
     '/workable'
   ];
-
+  
   // Check if the current path is a private route
   const isPrivatePath = privateRoutes.some(route => 
     path === route || path.startsWith(`${route}/`)
   );
 
+  // Redirect to login if trying to access private routes without authentication
+  if (isPrivatePath && !token) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+  
   // Production-specific checks
   if (process.env.NODE_ENV === 'production') {
-    // Block unauthorized emails
+    // Block unauthorized emails in production
+    const ALLOWED_PRODUCTION_EMAILS = [
+      'jack@ya-ya.co.uk',
+      // Add other authorized emails
+    ];
+    
     if (token && !ALLOWED_PRODUCTION_EMAILS.includes(token.email)) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
     
-    // Check for authentication and subscription on private routes
-    if (isPrivatePath) {
-      // Redirect to login if not authenticated
-      if (!token) {
-        return NextResponse.redirect(new URL('/login', request.url));
-      }
-      
-      // Redirect to subscription if not subscribed
-      if (token && !token.subscribed && !subscriptionPaths.includes(path)) {
-        return NextResponse.redirect(new URL('/subscription', request.url));
-      }
+    // Check for subscription on private routes
+    if (isPrivatePath && token && !token.subscribed && !subscriptionPaths.includes(path)) {
+      return NextResponse.redirect(new URL('/subscription', request.url));
     }
   }
-
-  // General authentication redirects
-  if (!token && !isPublicPath) {
-    return NextResponse.redirect(new URL('/login', request.url));
-  }
-
+  
   // Redirect authenticated users from public paths
   if (token && isPublicPath) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
-
+  
   return NextResponse.next();
 }
 
@@ -76,10 +74,6 @@ export const config = {
     '/signup',
     '/password-reset',
     '/subscription',
-    '/complete-profile',
-    '/ifyoucould',
-    '/linkedin',
-    '/unjobs',
-    '/workable'
+    '/complete-profile'
   ]
 };

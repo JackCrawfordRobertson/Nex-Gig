@@ -1,7 +1,14 @@
+// lib/firebase-mock.js
 import mockUsers from "@/app/mock/users";
 
 // Add a mock storage for profile pictures
 const mockStorage = {};
+
+// Helper function to check if we should allow data access
+const shouldAllowAccess = () => {
+  // In development, we'll use a simple check
+  return process.env.NODE_ENV === "development";
+};
 
 // Mock Firestore functions
 export const getDoc = async (docRef) => {
@@ -49,7 +56,6 @@ export const updateDoc = async (docRef, data) => {
 };
 
 export const doc = (db, collection, id) => {
-  // Return an object that more closely resembles a real DocumentReference
   return {
     _path: {
       segments: [collection, id]
@@ -58,7 +64,6 @@ export const doc = (db, collection, id) => {
     parent: {
       id: collection
     },
-    // Add any other properties needed to simulate a DocumentReference
     firestore: db
   };
 };
@@ -79,7 +84,6 @@ export const ref = (storage, path) => {
 
 export const uploadBytes = async (storageRef, file) => {
   const path = storageRef._path;
-  // Create a mock file URL
   const mockUrl = `https://mock-storage.example.com/${path}`;
   mockStorage[path] = {
     url: mockUrl,
@@ -109,19 +113,19 @@ export const getDownloadURL = async (storageRef) => {
     return Promise.resolve(mockStorage[path].url);
   }
   
-  // Return a fallback URL if not found
   console.log("Mock getDownloadURL: No file found, returning default URL");
   return Promise.resolve(`https://mock-storage.example.com/default-${Date.now()}`);
 };
 
-// Add this mock auth function to return null for currentUser
+// Fix the auth mock to include settings property
 export const getAuth = () => {
   return {
     currentUser: null,
-    signInWithEmailAndPassword: async (email, password) => {
-      // Only simulate login for explicit credentials
+    settings: { appVerificationDisabledForTesting: true },
+    signInWithEmailAndPassword: async (auth, email, password) => {
+      // Find a matching user from mockUsers
       const matchedUser = Object.entries(mockUsers).find(
-        ([id, user]) => user.email === email && password === "password"
+        ([id, user]) => user.email === email
       );
       
       if (matchedUser) {
@@ -129,7 +133,8 @@ export const getAuth = () => {
         return {
           user: {
             uid: id,
-            email: userData.email
+            email: userData.email,
+            displayName: userData.name || email.split('@')[0]
           }
         };
       }
@@ -137,4 +142,25 @@ export const getAuth = () => {
       throw new Error("Invalid credentials");
     }
   };
+};
+
+// Add mock signInWithEmailAndPassword function for direct import
+export const signInWithEmailAndPassword = async (auth, email, password) => {
+  // Find a matching user from mockUsers
+  const matchedUser = Object.entries(mockUsers).find(
+    ([id, user]) => user.email === email
+  );
+  
+  if (matchedUser) {
+    const [id, userData] = matchedUser;
+    return {
+      user: {
+        uid: id,
+        email: userData.email,
+        displayName: userData.name || email.split('@')[0]
+      }
+    };
+  }
+  
+  throw new Error("Invalid credentials");
 };
