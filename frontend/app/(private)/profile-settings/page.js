@@ -1,15 +1,22 @@
 // src/app/privacy/profile-settings/page.js
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { format } from "date-fns";
-import { db, doc, getDoc, updateDoc } from "@/lib/firebase";
-import { initializeApp } from "firebase/app";
+import {
+  db,
+  doc,
+  getDoc,
+  updateDoc,
+  storage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "@/lib/firebase";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -53,7 +60,6 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { showToast } from "@/lib/toast";
 
@@ -89,6 +95,9 @@ export default function ProfileSettingsPage() {
   const [userData, setUserData] = useState(null);
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Then in your component, add these state variables and functions:
+  const fileInputRef = useRef(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const { data: session, status } = useSession({
     required: true,
@@ -258,6 +267,77 @@ export default function ProfileSettingsPage() {
     }
   };
 
+  const handleProfilePictureChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      setUploadingImage(true);
+
+      // Check if we're in development mode
+      const isDevelopment = process.env.NODE_ENV === "development";
+      let downloadURL;
+
+      if (isDevelopment) {
+        // For development, create a local object URL instead of using Firebase Storage
+        downloadURL = URL.createObjectURL(file);
+        console.log("Development mode: Using local file URL", downloadURL);
+
+        // In development mode, directly update local state
+        setUserData({
+          ...userData,
+          profilePicture: downloadURL,
+        });
+
+        // Simulate a successful upload
+        toast({
+          title: "Profile picture updated",
+          description:
+            "Your profile picture has been updated successfully (development mode).",
+        });
+      } else {
+        // Real Firebase implementation for production
+        const userId = session.user.id;
+
+        // Create a reference to Firebase Storage
+        const storageRef = ref(storage, `profile-pictures/${userId}`);
+
+        // Upload the file
+        await uploadBytes(storageRef, file);
+
+        // Get the download URL
+        downloadURL = await getDownloadURL(storageRef);
+
+        // Update the user document in Firestore
+        const userDocRef = doc(db, "users", userId);
+        await updateDoc(userDocRef, {
+          profilePicture: downloadURL,
+          updatedAt: new Date().toISOString(),
+        });
+
+        // Update local state
+        setUserData({
+          ...userData,
+          profilePicture: downloadURL,
+        });
+
+        toast({
+          title: "Profile picture updated",
+          description: "Your profile picture has been updated successfully.",
+        });
+      }
+    } catch (error) {
+      console.error("Error updating profile picture:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile picture. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="container py-10 flex justify-center items-center min-h-[60vh]">
@@ -310,8 +390,20 @@ export default function ProfileSettingsPage() {
                         {userData?.lastName?.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
-                    <Button variant="outline" size="sm">
-                      Change Picture
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      ref={fileInputRef}
+                      onChange={handleProfilePictureChange}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingImage}
+                      onClick={() => fileInputRef.current.click()}
+                    >
+                      {uploadingImage ? "Uploading..." : "Change Picture"}
                     </Button>
                   </div>
 
@@ -563,7 +655,7 @@ export default function ProfileSettingsPage() {
                         <FormItem>
                           <FormLabel>Address Line 1</FormLabel>
                           <FormControl className="bg-white">
-                            <Input placeholder="123 Main Street" {...field} />
+                            <Input placeholder="23 Clement Street" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -578,7 +670,7 @@ export default function ProfileSettingsPage() {
                           <FormLabel>Address Line 2</FormLabel>
                           <FormControl className="bg-white">
                             <Input
-                              placeholder="Apartment, suite, etc. (optional)"
+                              placeholder="Welfare House (optional)"
                               {...field}
                             />
                           </FormControl>
@@ -595,7 +687,7 @@ export default function ProfileSettingsPage() {
                           <FormItem>
                             <FormLabel>City</FormLabel>
                             <FormControl className="bg-white">
-                              <Input placeholder="London" {...field} />
+                              <Input placeholder="East London" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -609,7 +701,7 @@ export default function ProfileSettingsPage() {
                           <FormItem>
                             <FormLabel>Postcode</FormLabel>
                             <FormControl className="bg-white">
-                              <Input placeholder="SW1A 1AA" {...field} />
+                              <Input placeholder="E14 5NH" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -804,140 +896,142 @@ export default function ProfileSettingsPage() {
             </Card>
           </TabsContent>
           <TabsContent value="privacy" className="space-y-4 mt-4 flex-1">
-  <Card className="flex flex-col h-full">
-    <CardHeader>
-      <CardTitle>Privacy Settings</CardTitle>
-      <CardDescription>
-        Manage your privacy preferences and data settings
-      </CardDescription>
-    </CardHeader>
-    <CardContent className="space-y-6 flex-1">
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-6"
-        >
-          <div className="space-y-4">
-          <Separator />
+            <Card className="flex flex-col h-full">
+              <CardHeader>
+                <CardTitle>Privacy Settings</CardTitle>
+                <CardDescription>
+                  Manage your privacy preferences and data settings
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 flex-1">
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="space-y-6"
+                  >
+                    <div className="space-y-4">
+                      <Separator />
 
-            <FormField
-              control={form.control}
-              name="notifications"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between">
-                  <div>
-                    <FormLabel>Email Notifications</FormLabel>
-                    <FormDescription>
-                      Receive email updates about activity
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+                      <FormField
+                        control={form.control}
+                        name="notifications"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between">
+                            <div>
+                              <FormLabel>Email Notifications</FormLabel>
+                              <FormDescription>
+                                Receive email updates about activity
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
 
-            <Separator />
+                      <Separator />
 
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-medium">Two-Factor Authentication</h3>
-                <p className="text-sm text-muted-foreground">
-                  Add an extra layer of security to your account
-                </p>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  showToast({
-                    title: "Feature Coming Soon",
-                    description: "Two-factor authentication will be available shortly."
-                  });
-                }}
-              >
-                Enable 2FA
-              </Button>
-            </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium">
+                            Two-Factor Authentication
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            Add an extra layer of security to your account
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            showToast({
+                              title: "Feature Coming Soon",
+                              description:
+                                "Two-factor authentication will be available shortly.",
+                            });
+                          }}
+                        >
+                          Enable 2FA
+                        </Button>
+                      </div>
 
-            <Separator />
+                      <Separator />
 
-            <div>
-              <h3 className="font-medium mb-2">Data Management</h3>
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    showToast({
-                      title: "Data Export Requested",
-                      description: "Your data export has been queued. You'll receive an email when it's ready.",
-                      variant: "success"
-                    });
-                  }}
-                >
-                  Request Data Export
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start text-destructive"
-                    >
-                      Delete Account
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>
-                        Are you absolutely sure?
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will
-                        permanently delete your account and remove
-                        your data from our servers.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction 
-                        className="bg-destructive text-destructive-foreground"
-                        onClick={() => {
-                          showToast({
-                            title: "Account Deletion Initiated",
-                            description: "Your account deletion process has begun. You'll receive a confirmation email.",
-                            variant: "error"
-                          });
-                        }}
-                      >
-                        Delete Account
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-          </div>
+                      <div>
+                        <h3 className="font-medium mb-2">Data Management</h3>
+                        <div className="space-y-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full justify-start"
+                            onClick={() => {
+                              showToast({
+                                title: "Data Export Requested",
+                                description:
+                                  "Your data export has been queued. You'll receive an email when it's ready.",
+                                variant: "success",
+                              });
+                            }}
+                          >
+                            Request Data Export
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full justify-start text-destructive"
+                              >
+                                Delete Account
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Are you absolutely sure?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will
+                                  permanently delete your account and remove
+                                  your data from our servers.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground"
+                                  onClick={() => {
+                                    showToast({
+                                      title: "Account Deletion Initiated",
+                                      description:
+                                        "Your account deletion process has begun. You'll receive a confirmation email.",
+                                      variant: "error",
+                                    });
+                                  }}
+                                >
+                                  Delete Account
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    </div>
 
-          <div className="flex justify-end">
-            <Button 
-              type="submit" 
-              disabled={isPending}
-            >
-              {isPending ? "Saving..." : "Save Privacy Settings"}
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </CardContent>
-  </Card>
-</TabsContent>
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={isPending}>
+                        {isPending ? "Saving..." : "Save Privacy Settings"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
     </div>

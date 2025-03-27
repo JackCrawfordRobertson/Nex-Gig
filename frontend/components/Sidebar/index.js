@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useState } from "react";
+import { appUrl } from "@/lib/firebase";
 
 export default function SidebarLayout({ children }) {
   const { data: session } = useSession();
@@ -34,6 +35,7 @@ export default function SidebarLayout({ children }) {
   const [playgroundOpen, setPlaygroundOpen] = useState(true);
   const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const [desktopUserMenuOpen, setDesktopUserMenuOpen] = useState(false);
+
 
   // Add this function before your component
   const getTimeBasedGreeting = () => {
@@ -73,10 +75,10 @@ export default function SidebarLayout({ children }) {
               className="w-full flex items-center justify-between px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
             >
               <div className="flex items-center">
-                <Home className="w-5 h-5 mr-3 text-gray-500" />
+                <Home className="w-4 h-4 mr-3 text-gray-500" />
                 <span>Dashboard</span>
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
+              <ChevronRight className="w-4 h-4 text-gray-400" />
             </Link>
           </div>
 
@@ -85,9 +87,9 @@ export default function SidebarLayout({ children }) {
               href="/linkedin"
               className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
             >
-              <Briefcase className="w-5 h-5 mr-3 text-gray-500" />
+              <Briefcase className="w-4 h-4 mr-3 text-gray-500" />
               <span>LinkedIn Jobs</span>
-              <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
+              <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
             </Link>
           </SidebarMenuItem>
 
@@ -96,9 +98,9 @@ export default function SidebarLayout({ children }) {
               href="/ifyoucould"
               className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
             >
-              <Palette className="w-5 h-5 mr-3 text-gray-500" />
+              <Palette className="w-4 h-4 mr-3 text-gray-500" />
               <span>If You Could</span>
-              <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
+              <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
             </Link>
           </SidebarMenuItem>
 
@@ -107,9 +109,9 @@ export default function SidebarLayout({ children }) {
               href="/unjobs"
               className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
             >
-              <Globe className="w-5 h-5 mr-3 text-gray-500" />
+              <Globe className="w-4 h-4 mr-3 text-gray-500" />
               <span>UN Jobs</span>
-              <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
+              <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
             </Link>
           </SidebarMenuItem>
 
@@ -118,9 +120,9 @@ export default function SidebarLayout({ children }) {
               href="/workable"
               className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
             >
-              <BookOpen className="w-5 h-5 mr-3 text-gray-500" />
+              <BookOpen className="w-4 h-4 mr-3 text-gray-500" />
               <span>Workable</span>
-              <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
+              <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
             </Link>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -152,7 +154,7 @@ export default function SidebarLayout({ children }) {
               </div>
             </div>
             <ChevronDown
-              className={`w-5 h-5 text-gray-400 transition-transform ${
+              className={`w-4 h-4 text-gray-400 transition-transform ${
                 desktopUserMenuOpen ? "rotate-180" : ""
               }`}
             />
@@ -169,12 +171,12 @@ export default function SidebarLayout({ children }) {
                 Profile Settings
               </Link>
               <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
-                className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-sm text-red-600"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign out
-              </button>
+  onClick={() => signOut({ callbackUrl: `${appUrl}/login` })}
+  className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-sm text-red-600"
+>
+  <LogOut className="w-4 h-4" />
+  Sign out
+</button>
             </div>
           )}
         </div>
@@ -253,12 +255,12 @@ export default function SidebarLayout({ children }) {
               Profile Settings
             </Link>
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-sm text-red-600"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
+  onClick={() => signOut({ callbackUrl: `${appUrl}/login` })}
+  className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-sm text-red-600"
+>
+  <LogOut className="w-4 h-4" />
+  Sign out
+</button>
           </div>
         )}
       </div>

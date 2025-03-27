@@ -127,6 +127,9 @@ const mockUsers = {
             },
         ],
         subscribed: true,
+        profilePicture: 'https://res.cloudinary.com/dfsznxwhz/image/upload/v1742992744/nextgig-logo_nqjhvq.svg',
+        firstName: 'Alice',
+        lastName: 'Smith',
     },
 };
 
