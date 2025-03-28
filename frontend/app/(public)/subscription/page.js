@@ -110,7 +110,7 @@ function SubscriptionComponent() {
                 trialEndDate: trialEndDate.toISOString(),
             }, { merge: true });
             
-            // Create a subscription record for tracking and fraud prevention
+            // Create a subscription record
             await addDoc(collection(db, "subscriptions"), {
                 userId: session.user.id,
                 subscriptionId: subscriptionData.subscriptionId,
@@ -125,32 +125,15 @@ function SubscriptionComponent() {
                 createdAt: new Date().toISOString(),
             });
         
-            // Improved redirection logic
-            const redirectUrl = "/dashboard";
-            
-            // Try multiple redirection methods
-            if (typeof window !== 'undefined') {
-                // Client-side redirect methods
-                if (window.location) {
-                    window.location.href = redirectUrl;
-                } else if (router) {
-                    router.push(redirectUrl);
-                }
-            } else if (router) {
-                router.push(redirectUrl);
-            }
-    
-            // Additional logging for debugging
-            console.log("Attempting to redirect to:", redirectUrl);
+            // The key fix: Use a form submit to force a new server request that will have the updated session
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/api/auth/session-refresh';
+            document.body.appendChild(form);
+            form.submit();
         } catch (err) {
             console.error("Error updating subscription:", err);
-            
-            // More detailed error handling
-            if (err instanceof Error) {
-                setErrorMessage(`Subscription update failed: ${err.message}. Please try again or contact support.`);
-            } else {
-                setErrorMessage("Subscription update failed. Please try again or contact support.");
-            }
+            setErrorMessage(`Subscription update failed: ${err.message}. Please try again or contact support.`);
         }
     };
 

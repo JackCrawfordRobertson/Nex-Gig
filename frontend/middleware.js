@@ -25,6 +25,11 @@ export async function middleware(request) {
     '/workable'
   ];
   
+  // Skip middleware checks for the session refresh API route
+  if (path === '/api/auth/session-refresh') {
+    return NextResponse.next();
+  }
+  
   // Check if the current path is a private route
   const isPrivatePath = privateRoutes.some(route => 
     path === route || path.startsWith(`${route}/`)
@@ -74,6 +79,7 @@ export const config = {
     '/signup',
     '/password-reset',
     '/subscription',
-    '/complete-profile'
+    '/complete-profile',
+    '/api/auth/session-refresh'  // Add this route to the matcher
   ]
 };
