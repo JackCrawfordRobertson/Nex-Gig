@@ -1,24 +1,38 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: false,
+  // Enable React Strict Mode for better performance and detecting potential issues
+  reactStrictMode: true,
   
-  // Skip type checking during build to speed up deployment
+  // Typescript configuration
   typescript: {
-    ignoreBuildErrors: true,
+    // Consider enabling type checking during build for better error detection
+    ignoreBuildErrors: false
   },
   
-  // Skip ESLint during build
+  // ESLint configuration
   eslint: {
-    ignoreDuringBuilds: true,
+    // Consider running ESLint during builds to catch potential issues
+    ignoreDuringBuilds: false
   },
   
-  // Optional: If you're using images
+  // Image optimization
   images: {
     domains: [
-      // Add domains you'll load images from here
+      // Add domains you'll load images from here, for example:
+      // 'example.com',
+      // 'cdn.yoursite.com'
     ]
+  },
+  
+  // Webpack configuration for Netlify compatibility
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Allow Netlify to handle Next.js functions
+      config.externals.push('@netlify/zip-it-and-ship-it');
+    }
+    return config;
   }
 };
 
-// Use ES Module export syntax instead of CommonJS
+// Use ES Module export syntax
 export default nextConfig;

@@ -1,13 +1,11 @@
 [build]
   base = "frontend"
-  command = "yarn install && yarn build" 
+  command = "yarn install && yarn build"
   publish = ".next"
 
-# This plugin is essential for Next.js with App Router and Server Components
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Optional: Set environment variables for different contexts
 [context.production.environment]
   NEXT_TELEMETRY_DISABLED = "1"
   NODE_ENV = "production"
@@ -15,3 +13,25 @@
 [context.deploy-preview.environment]
   NEXT_TELEMETRY_DISABLED = "1"
   NODE_ENV = "production"
+
+# Increase function timeout
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@node-rs"]
+  included_files = ["node_modules/next/dist/server/future/route-modules/pages-api/module.compiled.js"]
+  timeout = 30
+
+# Handle redirects for NextAuth
+[[redirects]]
+  from = "/api/auth/*"
+  to = "/.netlify/functions/next_api_auth_:splat"
+  status = 200
+  force = true
+
+# Add headers for CORS
+[[headers]]
+  for = "/api/auth/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
