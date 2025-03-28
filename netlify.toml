@@ -1,7 +1,7 @@
 [build]
-  base = "frontend"
+  base = "frontend"   # Only if your Next.js code is indeed in a 'frontend' folder
   command = "yarn install && yarn build"
-  publish = ".next"
+  publish = ".next"   # Adjust if your build outputs to "out" or another folder
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -18,29 +18,25 @@
   node_bundler = "esbuild"
   external_node_modules = ["@node-rs", "@netlify/functions"]
   included_files = [
+    # Keep or remove if you do not actually need these. 
     "node_modules/next/dist/server/future/route-modules/pages-api/module.compiled.js"
   ]
-  
+
   [functions.timeout]
     duration = 30
 
-# Handle redirects for NextAuth
+# (Optional) If you want Netlify to explicitly handle NextAuth routes.
+# You only need ONE of these blocks:
 [[redirects]]
   from = "/api/auth/*"
-  to = "/.netlify/functions/next_api_auth_:splat"
+  to = "/.netlify/functions/next_api_auth"
   status = 200
   force = true
 
-# Add headers for CORS
+
 [[headers]]
   for = "/api/auth/*"
   [headers.values]
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, POST, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
-
-    [[redirects]]
-  from = "/api/auth/*"
-  to = "/.netlify/functions/next_api_auth_:splat"
-  status = 200
-  force = true

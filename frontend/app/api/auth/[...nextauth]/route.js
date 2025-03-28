@@ -176,8 +176,6 @@ export const authOptions = {
     error: '/login',
   },
   
-  // Netlify-specific configurations
-  basePath: '/api/auth',
   csrf: {
     verifyToken: process.env.NODE_ENV !== 'development'
   },
