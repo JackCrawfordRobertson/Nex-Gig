@@ -1,3 +1,5 @@
+// api/auth/[...nextauth]/route.js
+
 import NextAuth from "next-auth/next";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -5,6 +7,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import CredentialsProvider from "next-auth/providers/credentials";
 import mockUsers from "@/app/mock/users";
+import crypto from 'crypto';
 
 export const authOptions = {
   providers: [
@@ -172,8 +175,15 @@ export const authOptions = {
     signIn: '/login',
     error: '/login',
   },
+  
+  // Netlify-specific configurations
+  basePath: '/api/auth',
+  csrf: {
+    verifyToken: process.env.NODE_ENV !== 'development'
+  },
+  
   debug: process.env.NODE_ENV === 'development',
-  secret: process.env.NEXTAUTH_SECRET || "development-secret",
+  secret: process.env.NEXTAUTH_SECRET || crypto.randomUUID(),
 };
 
 // Create the handler

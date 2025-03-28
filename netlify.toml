@@ -38,3 +38,9 @@
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, POST, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
+
+    [[redirects]]
+  from = "/api/auth/*"
+  to = "/.netlify/functions/next_api_auth_:splat"
+  status = 200
+  force = true
