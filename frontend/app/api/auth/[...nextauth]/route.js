@@ -21,6 +21,7 @@ export const authOptions = {
           // For development mode, use the mock user
           if (process.env.NODE_ENV === "development") {
             const mockUser = mockUsers["demo-user-id"];
+            console.log("Development mode: Using mock user for authentication");
             return { 
               id: "demo-user-id",
               email: mockUser.email,
@@ -29,19 +30,27 @@ export const authOptions = {
           }
           
           // Production mode - use actual Firebase auth
-          const userCredential = await signInWithEmailAndPassword(
-            auth, 
-            credentials.email, 
-            credentials.password
-          );
-          
-          return { 
-            id: userCredential.user.uid, 
-            email: userCredential.user.email,
-            name: userCredential.user.displayName || credentials.email.split('@')[0]
-          };
+          try {
+            console.log("Attempting Firebase authentication for email:", credentials.email);
+            const userCredential = await signInWithEmailAndPassword(
+              auth, 
+              credentials.email, 
+              credentials.password
+            );
+            
+            console.log("Firebase authentication successful, user ID:", userCredential.user.uid);
+            return { 
+              id: userCredential.user.uid, 
+              email: userCredential.user.email,
+              name: userCredential.user.displayName || credentials.email.split('@')[0]
+            };
+          } catch (firebaseError) {
+            console.error("Firebase authentication error:", firebaseError.code, firebaseError.message);
+            throw new Error(`Firebase authentication failed: ${firebaseError.message}`);
+          }
         } catch (error) {
-          console.error("Auth error:", error.message);
+          console.error("Authorization error:", error.message);
+          // Return null instead of throwing to prevent NextAuth from breaking
           return null;
         }
       }
@@ -52,21 +61,24 @@ export const authOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       // Initial sign-in or user update
       if (user) {
+        console.log("JWT callback: User data received, updating token");
         token.sub = user.id;
         token.email = user.email;
         token.name = user.name;
       }
       
       try {
-        // For non-development environments, fetch the most up-to-date user data
-        if (process.env.NODE_ENV !== "development" && token.sub) {
+        // Update token on every refresh or if it's a new sign-in
+        if ((trigger === "update" || user) && process.env.NODE_ENV !== "development" && token.sub) {
+          console.log("JWT callback: Fetching latest user data from Firestore");
           const userDoc = await getDoc(doc(db, "users", token.sub));
           
           if (userDoc.exists()) {
             const userData = userDoc.data();
+            console.log("JWT callback: User data found in Firestore");
             
             // Update token with the latest user data
             token.subscribed = userData.subscribed || false;
@@ -79,6 +91,15 @@ export const authOptions = {
             token.firstName = userData.firstName;
             token.lastName = userData.lastName;
             token.profilePicture = userData.profilePicture;
+            
+            // Log subscription status for debugging
+            console.log("JWT callback: Token updated with subscription status:", {
+              subscribed: token.subscribed,
+              onTrial: token.onTrial,
+              subscriptionId: token.subscriptionId
+            });
+          } else {
+            console.warn("JWT callback: User document not found in Firestore");
           }
         }
       } catch (error) {
@@ -89,6 +110,8 @@ export const authOptions = {
     },
     async session({ session, token }) {
       if (token) {
+        console.log("Session callback: Updating session with token data");
+        
         // Always update session with the latest token data
         session.user.id = token.sub;
         session.user.email = token.email || session.user.email;
@@ -108,6 +131,7 @@ export const authOptions = {
         
         // For development, use mock user data
         if (process.env.NODE_ENV === "development") {
+          console.log("Session callback: Using mock user data in development mode");
           const mockUser = mockUsers["demo-user-id"];
           session.user.subscribed = mockUser.subscribed;
           session.user.onTrial = mockUser.onTrial;
@@ -115,6 +139,14 @@ export const authOptions = {
           session.user.lastName = mockUser.lastName;
           session.user.profilePicture = mockUser.profilePicture;
         }
+        
+        // Log session for debugging
+        console.log("Session callback: Updated session:", {
+          id: session.user.id,
+          email: session.user.email,
+          subscribed: session.user.subscribed,
+          onTrial: session.user.onTrial
+        });
       }
       
       return session;
@@ -125,6 +157,7 @@ export const authOptions = {
       // Optional: Additional actions on sign-in
       if (message.user.id && process.env.NODE_ENV !== "development") {
         try {
+          console.log("SignIn event: Updating last login timestamp for user:", message.user.id);
           const userRef = doc(db, "users", message.user.id);
           await updateDoc(userRef, {
             lastLogin: new Date().toISOString()

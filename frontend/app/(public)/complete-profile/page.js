@@ -204,120 +204,88 @@ export default function CompleteProfile() {
       alert("Please complete all fields before proceeding.");
       return;
     }
-
+  
     setIsLoading(true);
     setCreateAccountError("");
     
-    // Test connection first
-    const hasConnection = await testFirestoreConnection();
-    if (!hasConnection) {
-      setCreateAccountError("Connection to our database appears to be blocked by your browser. Please disable ad blockers or try a different browser.");
-      setIsLoading(false);
-      return;
-    }
-
-    if (!userIP || !deviceFingerprint) {
-      alert("Please wait a moment before signing up.");
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      // Check if user has already used a free trial (either same IP OR same fingerprint)
-      const usersRef = collection(db, "users");
-      const ipQuery = query(usersRef, where("userIP", "==", userIP));
-      const fingerprintQuery = query(
-        usersRef,
-        where("deviceFingerprint", "==", deviceFingerprint)
-      );
-
-      const [ipSnapshot, fingerprintSnapshot] = await Promise.all([
-        getDocs(ipQuery),
-        getDocs(fingerprintQuery),
-      ]);
-
-      if (!ipSnapshot.empty || !fingerprintSnapshot.empty) {
-        alert("You have already used a free trial.");
+      // Test connection first
+      const hasConnection = await testFirestoreConnection();
+      if (!hasConnection) {
+        setCreateAccountError("Connection to our database appears to be blocked by your browser. Please disable ad blockers or try a different browser.");
         setIsLoading(false);
         return;
       }
-
+  
+      if (!userIP || !deviceFingerprint) {
+        alert("Please wait a moment before signing up.");
+        setIsLoading(false);
+        return;
+      }
+  
+      // In development mode, log the data instead of making the actual call
       if (isDev) {
         console.log("DEV MODE: Skipping real Firebase sign-up. Your data:", {
-          email,
-          password,
-          confirmPassword,
-          firstName,
-          lastName,
-          address,
-          profilePicture,
-          jobTitles,
-          jobLocations,
-          userIP,
-          deviceFingerprint,
+          email, password, firstName, lastName, address,
+          profilePicture, jobTitles, jobLocations, userIP, deviceFingerprint
         });
         setIsLoading(false);
-        alert("Dev mode - Sign up flow skipped. Check console logs.");
+        
+        // Simulate successful signup in dev mode
+        router.push("/subscription");
         return;
       }
-
-      // Create user in Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const user = userCredential.user;
-
-      // Only store essential user information initially
-      const essentialUserData = {
-        email,
-        firstName,
-        lastName,
-        address: {
-          firstLine: address.firstLine,
-          secondLine: address.secondLine || "",
-          city: address.city,
-          postcode: address.postcode,
-        },
-        profilePicture,
-        jobTitles,
-        jobLocations,
-        subscribed: false,
-        profileVisibility: "private",
-        marketingConsent: false,
-        createdAt: new Date().toISOString(),
-        userIP,
-        deviceFingerprint,
-      };
+  
+      // Use the dedicated API endpoint for account creation
+      const response = await fetch("/api/auth/create-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email, password, firstName, lastName, address,
+          profilePicture, jobTitles, jobLocations, userIP, deviceFingerprint
+        })
+      });
+  
+      if (!response.ok) {
+        // If the response is not JSON, log the raw text
+        if (!response.headers.get("content-type")?.includes("application/json")) {
+          const text = await response.text();
+          console.error("Non-JSON error response:", text);
+          throw new Error("Server returned an invalid response format");
+        }
+        
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create account");
+      }
       
-      // Create the user document with just essential data
-      await setDoc(doc(db, "users", user.uid), essentialUserData);
-
+      const data = await response.json();
+      console.log("Account created successfully:", data);
+  
       // Sign the user in using NextAuth
       const signInResult = await signIn("credentials", {
         redirect: false,
         email,
         password,
       });
-
+  
       if (signInResult.error) {
         console.error("NextAuth signIn error:", signInResult.error);
-        alert("Unable to automatically sign you in. Please log in manually.");
+        alert("User created but unable to automatically sign you in. Please log in manually.");
         router.push("/login");
         return;
       }
-
+  
       // Redirect to subscription page
       router.push("/subscription");
+      
     } catch (error) {
       console.error("Sign-Up Error:", error);
-      setCreateAccountError(error.message);
+      setCreateAccountError(error.message || "An unknown error occurred");
     } finally {
       setIsLoading(false);
     }
   };
-
+  
   return (
     <div className="flex min-h-screen items-center justify-center bg-transparent p-6">
       <Card className="w-full max-w-lg shadow-lg">
