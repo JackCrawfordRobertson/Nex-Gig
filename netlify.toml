@@ -16,8 +16,10 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["@node-rs"]
-  included_files = ["node_modules/next/dist/server/future/route-modules/pages-api/module.compiled.js"]
+  external_node_modules = ["@node-rs", "@netlify/functions"]
+  included_files = [
+    "node_modules/next/dist/server/future/route-modules/pages-api/module.compiled.js"
+  ]
   
   [functions.timeout]
     duration = 30

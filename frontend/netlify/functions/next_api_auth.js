@@ -1,4 +1,3 @@
-// netlify/functions/next_api_auth.js
 const { builder } = require('@netlify/functions');
 
 async function handler(event, context) {
@@ -10,10 +9,18 @@ async function handler(event, context) {
     body: event.body ? JSON.parse(event.body) : null
   });
 
-  // Pass through to Next.js API routes
-  // This relies on the @netlify/plugin-nextjs plugin
-  const nextHandler = require('../../.netlify/functions-internal/next_api_auth').handler;
-  return await nextHandler(event, context);
+  try {
+    // Pass through to Next.js API routes
+    // This relies on the @netlify/plugin-nextjs plugin
+    const nextHandler = require('../../.netlify/functions-internal/next_api_auth').handler;
+    return await nextHandler(event, context);
+  } catch (error) {
+    console.error('Error in Netlify function:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Internal Server Error' })
+    };
+  }
 }
 
 exports.handler = builder(handler);
